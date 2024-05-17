@@ -1,0 +1,13 @@
+[package]
+name = "graphs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.83"
+clap = { version = "4.5.4", features = ["derive"] }
+enum_dispatch = "0.3.13"
+itertools = "0.13.0"
+static_assertions = "1.1.0"
