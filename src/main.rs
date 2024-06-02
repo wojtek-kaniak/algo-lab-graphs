@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()> {
     let (graph, len) = if cli.generate {
         generate_from_input(&mut stdin, repr)
     } else {
-        load_from_stdin(repr)
+        load_from_stdin(&mut stdin, repr)
     }?;
 
     loop {
@@ -100,6 +100,9 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     println!("the graph is not acyclic");
                 }
+            },
+            "exit" => {
+                break;
             },
             _ => {
                 println!("{}", anyhow!("invalid action"));
@@ -239,13 +242,9 @@ fn generate_from_input(mut lines: impl Iterator<Item = Result<String, io::Error>
     }, len))
 }
 
-fn load_from_stdin(repr: GraphRepr) -> anyhow::Result<(AnyGraph, usize)> {
-    let stdin = io::stdin();
-
-    let mut stdin = stdin.lock().lines();
-
+fn load_from_stdin(mut lines: impl Iterator<Item = Result<String, io::Error>>, repr: GraphRepr) -> anyhow::Result<(AnyGraph, usize)> {
     prompt("nodes")?;
-    let len: usize = stdin.next()
+    let len: usize = lines.next()
         .context("unexpected EOF")?.context("invalid UTF-8 from stdin")?
         .parse().context("invalid node count (expected a number)")?;
 
@@ -253,7 +252,7 @@ fn load_from_stdin(repr: GraphRepr) -> anyhow::Result<(AnyGraph, usize)> {
     for from in 0..len {
         prompt(&format!("{:5}", from))?;
 
-        let to: Vec<usize> = stdin.next()
+        let to: Vec<usize> = lines.next()
             .context("unexpected EOF")?.context("invalid UTF-8 from stdin")?
             .split_whitespace().map(|x| x.parse())
             .fold(Ok(vec![]), |acc, current| {
