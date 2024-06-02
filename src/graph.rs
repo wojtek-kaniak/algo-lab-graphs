@@ -301,7 +301,7 @@ pub struct AdjacencyMatrix {
 
 impl AdjacencyMatrix {
     pub fn acyclic_from_saturation(len: usize, saturation: f64) -> Self {
-        let possible_edges = len * len - len;
+        let possible_edges = len * len / 2 - len;
         let mut edges_left = ((possible_edges as f64) * saturation).round() as usize;
 
         let mut graph = Self::empty(0..len);
