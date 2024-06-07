@@ -19,14 +19,29 @@ pub trait Graph where Self: Eq + Display {
         self.adjacent(from).any(|x| x == to)
     }
 
+    /// [Graph::is_adjacent] but bidirectional
+    fn has_any_edge(&self, a: usize, b: usize) -> bool {
+        Self::is_adjacent(self, a, b) || Self::is_adjacent(self, b, a)
+    }
+
     /// `true` if the graph has no edges.
     fn is_empty(&self) -> bool;
 
     /// `true` is returned if the edge was already present in the graph.
     fn add_edge(&mut self, from: usize, to: usize) -> bool;
 
+    /// `true` is returned if the edge was already present in the graph.
+    fn add_undirected_edge(&mut self, from: usize, to: usize) -> bool {
+        self.add_edge(from, to) & self.add_edge(to, from)
+    }
+
     /// `true` is returned if the edge was present in the graph.
     fn remove_edge(&mut self, from: usize, to: usize) -> bool;
+
+    /// `true` is returned if the edge was present in the graph.
+    fn remove_undirected_edge(&mut self, from: usize, to: usize) -> bool {
+        self.remove_edge(from, to) | self.remove_edge(to, from)
+    }
 }
 
 pub mod obj_safe {
@@ -52,6 +67,8 @@ pub mod obj_safe {
     
         /// `true` is returned if the edge was present in the graph.
         fn remove_edge(&mut self, from: usize, to: usize) -> bool;
+
+        fn remove_undirected_edge(&mut self, a: usize, b: usize) -> bool;
     }
 
     static_assertions::assert_obj_safe!(DynGraph);
@@ -79,6 +96,10 @@ pub mod obj_safe {
     
         fn remove_edge(&mut self, from: usize, to: usize) -> bool {
             Graph::remove_edge(self, from, to)
+        }
+
+        fn remove_undirected_edge(&mut self, a: usize, b: usize) -> bool {
+            Graph::remove_undirected_edge(self, a, b)
         }
     }
 
@@ -318,6 +339,38 @@ impl AdjacencyMatrix {
         }
 
         graph
+    }
+
+    pub fn undirected_from_saturation(len: usize, saturation: f64) -> Self {
+        let possible_edges = len * len / 2 - len;
+        let mut edges_left = ((possible_edges as f64) * saturation).round() as usize;
+
+        let mut graph = Self::empty(0..len);
+
+        'outer: for from in 0..len {
+            for to in (from + 1)..len {
+                if edges_left == 0 {
+                    break 'outer;
+                }
+
+                graph.add_undirected_edge(from, to);
+                edges_left -= 1;
+            }
+        }
+
+        graph
+    }
+
+    pub fn isolate_node(&mut self, node: usize) {
+        let len = self.len;
+
+        for i in 0..self.len {
+            self.matrix[node * len + i] = false;
+        }
+
+        for i in 0..self.len {
+            self.matrix[i * len + node] = false;
+        }
     }
 }
 

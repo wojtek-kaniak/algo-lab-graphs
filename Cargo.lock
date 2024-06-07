@@ -129,6 +129,7 @@ dependencies = [
  "clap",
  "enum_dispatch",
  "itertools",
+ "nth-cons-list",
  "static_assertions",
 ]
 
@@ -152,6 +153,12 @@ checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
+
+[[package]]
+name = "nth-cons-list"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ed53ae3a1c7c88105bfa186807dbc13065efeac0b1db803b0f1f112731d642e"
 
 [[package]]
 name = "once_cell"
