@@ -1,14 +1,15 @@
-use std::{collections::{BTreeMap, BTreeSet}, io::{self, BufRead, IsTerminal, Write}};
+use std::{collections::BTreeSet, io::{self, BufRead, IsTerminal, Write}};
 
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use graph::obj_safe::{AnyGraph, GraphRepr};
 use itertools::Itertools;
-use nth_cons_list::{cons, nil, List};
+use nth_cons_list::List;
 
 use crate::graph::{AdjacencyList, AdjacencyMatrix, AdjacencyTable, Graph};
 
 mod graph;
+mod algorithms;
 
 #[derive(Debug, Clone, Parser)]
 #[clap(group = clap::ArgGroup::new("generate-group").multiple(false))]
@@ -16,11 +17,11 @@ struct Cli {
     #[clap(long, group = "generate-group")]
     generate: bool,
 
-    #[clap(long, group = "generate-group")]
+    #[clap(long, alias = "hamilton", group = "generate-group")]
     /// Should the generated graph be traceable (contain a hamiltonian path).
     generate_hamiltonian: bool,
 
-    #[clap(long, group = "generate-group")]
+    #[clap(long, alias = "non-hamilton", group = "generate-group")]
     /// Should the generated graph not contain a hamiltonian path.
     generate_non_hamiltonian: bool,
 
@@ -75,7 +76,7 @@ fn main() -> anyhow::Result<()> {
                 let start = input(&mut stdin)?.parse()
                     .context("invalid node (expected a number)")?;
 
-                dfs(&graph, start, &mut |vertex| {
+                algorithms::dfs(&graph, start, &mut |vertex| {
                     if set.insert(vertex) {
                         print!("{} ", vertex);
                     }
@@ -90,7 +91,7 @@ fn main() -> anyhow::Result<()> {
                 let start = input(&mut stdin)?.parse()
                     .context("invalid node (expected a number)")?;
 
-                bfs(&graph, start, &mut |vertex| {
+                algorithms::bfs(&graph, start, &mut |vertex| {
                     if set.insert(vertex) {
                         print!("{} ", vertex);
                     }
@@ -99,25 +100,25 @@ fn main() -> anyhow::Result<()> {
                 println!();
             },
             "kahn" => {
-                if let Ok(order) = kahn(graph.clone(), (0..len).collect()) {
+                if let Ok(order) = algorithms::kahn(graph.clone(), (0..len).collect()) {
                     println!("{}", order.iter().join(", "));
                 } else {
                     println!("the graph is not acyclic");
                 }
             },
             "tarjan" => {
-                if let Ok(order) = tarjan(&graph, (0..len).collect()) {
+                if let Ok(order) = algorithms::tarjan(&graph, (0..len).collect()) {
                     println!("{}", order.iter().join(", "));
                 } else {
                     println!("the graph is not acyclic");
                 }
             },
-            "eulerian-circuit" => {
+            "eulerian-circuit" | "euler" => {
                 prompt("start")?;
                 let start = input(&mut stdin)?.parse()
                     .context("invalid node (expected a number)")?;
 
-                let circuit = eulerian_circuit(graph.clone(), start, len);
+                let circuit = algorithms::eulerian_circuit(graph.clone(), start, len);
 
                 if let Some(circuit) = circuit {
                     println!("{}", circuit.iter().join(", "));
@@ -125,12 +126,12 @@ fn main() -> anyhow::Result<()> {
                     println!("no eulerian circuit");
                 }
             },
-            "hamiltonian-cycle" => {
+            "hamiltonian-cycle" | "hamilton" => {
                 prompt("start")?;
                 let start = input(&mut stdin)?.parse()
                     .context("invalid node (expected a number)")?;
 
-                let cycle = hamiltonian_cycle(&graph, start, len);
+                let cycle = algorithms::hamiltonian_cycle(&graph, start, len);
 
                 if let Some(cycle) = cycle {
                     println!("{}", cycle.iter().join(", "));
@@ -152,157 +153,6 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn dfs(graph: &AnyGraph, start: usize, callback: &mut impl FnMut(usize)) {
-    callback(start);
-
-    for adj in graph::obj_safe::DynGraph::adjacent(graph, start) {
-        dfs(graph, adj, callback);
-    }
-}
-
-fn bfs(graph: &AnyGraph, start: usize, callback: &mut impl FnMut(usize)) {
-    fn inner(graph: &AnyGraph, start: usize, callback: &mut impl FnMut(usize)) {
-        for adj in graph::obj_safe::DynGraph::adjacent(graph, start) {
-            callback(adj);
-        }
-
-        for adj in graph::obj_safe::DynGraph::adjacent(graph, start) {
-            inner(graph, adj, callback);
-        }
-    }
-
-    callback(start);
-
-    inner(graph, start, callback)
-}
-
-fn kahn(mut graph: AnyGraph, vertices: Vec<usize>) -> Result<Vec<usize>, AnyGraph> {
-    use graph::obj_safe::DynGraph;
-
-    let mut vertices_left = vertices.iter()
-        .filter(|v| graph.adjacent_to(**v).is_empty())
-        .copied()
-        .collect_vec();
-
-    let mut order = vec![];
-
-    while let Some(vertex) = vertices_left.pop() {
-        order.push(vertex);
-
-        for adj in graph.adjacent(vertex) {
-            graph.remove_edge(vertex, adj);
-            
-            if graph.adjacent_to(adj).is_empty() {
-                vertices_left.push(adj);
-            }
-        }
-    }
-    
-    if graph.is_empty() {
-        Ok(order)
-    } else {
-        Err(graph)
-    }
-}
-
-fn tarjan(graph: &AnyGraph, vertices: BTreeSet<usize>) -> Result<Vec<usize>, usize> {
-    use graph::obj_safe::DynGraph;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    enum Mark {
-        Temporary,
-        Permanent,
-    }
-
-    let mut order = vec![];
-
-    let mut unmarked = vertices;
-    let mut marked: BTreeMap<usize, Mark> = BTreeMap::new();
-
-    fn visit(
-        vertex: usize,
-        graph: &AnyGraph,
-        unmarked: &mut BTreeSet<usize>,
-        marked: &mut BTreeMap<usize, Mark>,
-        order: &mut Vec<usize>,
-    ) -> Result<(), usize> {
-        match marked.get(&vertex) {
-            Some(Mark::Permanent) => return Ok(()),
-            Some(Mark::Temporary) => return Err(vertex),
-            None => {
-                unmarked.remove(&vertex);
-                marked.insert(vertex, Mark::Temporary);
-
-                for adj in graph.adjacent(vertex) {
-                    visit(adj, graph, unmarked, marked, order)?;
-                }
-                
-                *marked.get_mut(&vertex).expect("vertex not yet marked") = Mark::Permanent;
-
-                order.push(vertex);
-                Ok(())
-            },
-        }
-    }
-
-    while let Some(vertex) = unmarked.pop_first() {
-        visit(vertex, &graph, &mut unmarked, &mut marked, &mut order)?;
-    }
-    
-    Ok(order.iter().rev().copied().collect())
-}
-
-fn eulerian_circuit(mut graph: AnyGraph, start: usize, vertex_count: usize) -> Option<Vec<usize>> {
-    use graph::obj_safe::DynGraph;
-
-    let mut stack = vec![start];
-    let mut result = vec![];
-
-    while let Some(vertex) = stack.pop() {
-        if graph.adjacent(vertex).len() == 0 {
-            result.push(vertex);
-        } else {
-            stack.push(vertex);
-
-            for adj in graph.adjacent(vertex) {
-                graph.remove_undirected_edge(vertex, adj);
-                stack.push(adj);
-            }
-        }
-    }
-
-    if result.len() == vertex_count {
-        Some(result)
-    } else {
-        None
-    }
-}
-
-fn hamiltonian_cycle(graph: &AnyGraph, start: usize, vertex_count: usize) -> Option<Vec<usize>> {
-    use graph::obj_safe::DynGraph;
-
-    fn inner(graph: &AnyGraph, path: List<usize>, path_len: usize, vertex_count: usize) -> Option<Vec<usize>> {
-        if path_len == vertex_count && graph.is_adjacent(path.rev_head().unwrap(), *path.head()) {
-            Some(path.to_vec())
-        } else {
-            let head = *path.head();
-            for adj in graph.adjacent(head) {
-                if !path.contains(adj) {
-                    if let Some(path) = inner(graph, cons(adj, path.clone()), path_len + 1, vertex_count) {
-                        return Some(path);
-                    }
-                }
-            }
-
-            None
-        }
-    }
-
-    let path = cons(start, nil());
-
-    inner(graph, path, 1, vertex_count)
 }
 
 fn generate_from_input(mut lines: impl Iterator<Item = Result<String, io::Error>>, repr: GraphRepr)
@@ -418,7 +268,7 @@ fn generate_hamiltonian(mut lines: impl Iterator<Item = Result<String, io::Error
     let mut current_edges = len + 1;
     let mut last_node = 0;
 
-    while (current_edges as f64 / (len as f64 / 2.0)) < saturation {
+    while (current_edges as f64 / ((len as f64).powi(2) / 2.0)) < saturation {
         if last_node + 4 > len {
             break;
         }
@@ -431,9 +281,10 @@ fn generate_hamiltonian(mut lines: impl Iterator<Item = Result<String, io::Error
             matrix.add_undirected_edge(last_node + 2, last_node + 4);
             matrix.add_undirected_edge(last_node + 4, last_node);
 
-            last_node += 1;
             current_edges += 3;
         }
+
+        last_node += 1;
     }
 
     Ok((match repr {
@@ -473,7 +324,7 @@ fn generate_non_hamiltonian(mut lines: impl Iterator<Item = Result<String, io::E
     }, len))
 }
 
-trait ListExt<T> {
+pub(crate) trait ListExt<T> {
     fn rev_head(&self) -> Option<T>;
 
     fn to_vec(self) -> Vec<T>;
@@ -516,6 +367,8 @@ impl<T: Copy + PartialEq> ListExt<T> for List<T> {
 
 #[cfg(test)]
 mod tests {
+    use nth_cons_list::{cons, nil};
+
     use super::*;
 
     #[test]
