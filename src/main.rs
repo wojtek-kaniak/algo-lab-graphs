@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, io::{self, BufRead, IsTerminal, Write}};
+use std::{collections::{BTreeSet, HashSet}, io::{self, BufRead, IsTerminal, Write}};
 
 use anyhow::{anyhow, Context};
 use clap::Parser;
@@ -138,6 +138,9 @@ fn main() -> anyhow::Result<()> {
                 } else {
                     println!("Hamiltonian cycle not found");
                 }
+            },
+            "tikz" => {
+                tikz_export(&graph, 0..len)
             },
             "exit" => {
                 break;
@@ -322,6 +325,20 @@ fn generate_non_hamiltonian(mut lines: impl Iterator<Item = Result<String, io::E
         GraphRepr::AdjacencyTable
             => AdjacencyTable::from_adjacencies(0..len, |from| matrix.adjacent(from)).into(),
     }, len))
+}
+
+fn tikz_export(graph: &AnyGraph, vertices: impl Iterator<Item = usize>) {
+    use graph::obj_safe::DynGraph;
+
+    let mut vertices_printed = HashSet::new();
+
+    for from in vertices {
+        if vertices_printed.insert(from) {
+            print!("{from} -> {{");
+            graph.adjacent(from).into_iter().join(", ");
+            println!("}},")
+        }
+    }
 }
 
 pub(crate) trait ListExt<T> {
