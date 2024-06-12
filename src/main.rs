@@ -268,11 +268,11 @@ fn generate_hamiltonian(mut lines: impl Iterator<Item = Result<String, io::Error
     
     matrix.add_undirected_edge(len - 1, 0);
 
-    let mut current_edges = len + 1;
+    let mut current_edges = len;
     let mut last_node = 0;
 
-    while (current_edges as f64 / ((len as f64).powi(2) / 2.0)) < saturation {
-        if last_node + 4 > len {
+    while (current_edges as f64 / ((len as f64).powi(2) - len as f64)) < saturation {
+        if last_node + 4 >= len {
             break;
         }
 
@@ -284,7 +284,7 @@ fn generate_hamiltonian(mut lines: impl Iterator<Item = Result<String, io::Error
             matrix.add_undirected_edge(last_node + 2, last_node + 4);
             matrix.add_undirected_edge(last_node + 4, last_node);
 
-            current_edges += 3;
+            current_edges += 6;
         }
 
         last_node += 1;
