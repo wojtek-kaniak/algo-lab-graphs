@@ -335,7 +335,7 @@ fn tikz_export(graph: &AnyGraph, vertices: impl Iterator<Item = usize>) {
     for from in vertices {
         if vertices_printed.insert(from) {
             print!("{from} -> {{");
-            graph.adjacent(from).into_iter().join(", ");
+            print!("{}", graph.adjacent(from).into_iter().join(", "));
             println!("}},")
         }
     }
