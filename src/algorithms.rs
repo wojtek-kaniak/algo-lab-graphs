@@ -112,23 +112,19 @@ pub fn eulerian_circuit(mut graph: AnyGraph, start: usize, vertex_count: usize) 
     let mut result = vec![];
 
     while let Some(vertex) = stack.pop() {
-        if graph.adjacent(vertex).len() == 0 {
-            result.push(vertex);
-        } else {
+        let adjacents = graph.adjacent(vertex);
+
+        if let Some(adj) = adjacents.last().copied() {
             stack.push(vertex);
 
-            for adj in graph.adjacent(vertex) {
-                graph.remove_undirected_edge(vertex, adj);
-                stack.push(adj);
-            }
+            graph.remove_undirected_edge(vertex, adj);
+            stack.push(adj);
+        } else {
+            result.push(vertex);
         }
     }
 
-    if result.len() == vertex_count {
-        Some(result)
-    } else {
-        None
-    }
+    Some(result)
 }
 
 pub fn hamiltonian_cycle(graph: &AnyGraph, start: usize, vertex_count: usize) -> Option<Vec<usize>> {

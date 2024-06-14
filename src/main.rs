@@ -389,6 +389,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hamiltonian_gen_cycle() {
+        for nodes in 10..18 {
+            let (graph, _) = generate_hamiltonian(
+                [format!("{nodes}"), "50".to_owned()].into_iter().map(|x| Ok(x)),
+                GraphRepr::AdjacencyTable
+            ).unwrap();
+    
+            assert!(
+                algorithms::hamiltonian_cycle(&graph, 0, nodes).is_some(),
+                "assertion failed for {nodes} nodes"
+            );
+        }
+    }
+
+    #[test]
+    fn non_hamiltonian_gen_cycle() {
+        for nodes in 10..18 {
+            let (graph, _) = generate_non_hamiltonian(
+                [format!("{nodes}"), "50".to_owned()].into_iter().map(|x| Ok(x)),
+                GraphRepr::AdjacencyTable
+            ).unwrap();
+    
+            assert!(
+                algorithms::hamiltonian_cycle(&graph, 0, nodes).is_none(),
+                "assertion failed for {nodes} nodes"
+            );
+        }
+    }
+
+    #[test]
     fn list_contains() {
         let list = cons(1, cons(4, cons(2, nil())));
 
